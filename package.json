@@ -1,0 +1,34 @@
+{
+  "name": "bookish-bargains-hub-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit && tsc -p scripts/tsconfig.json --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "db:seed:generate": "tsx scripts/seed.ts",
+    "db:seed:local": "npm run db:seed:generate && wrangler d1 execute DB --local --file=scripts/seed.sql",
+    "db:seed:remote": "npm run db:seed:generate && wrangler d1 execute DB --remote --file=scripts/seed.sql",
+    "db:clear-demo:local": "wrangler d1 execute DB --local --file=scripts/clear-demo.sql",
+    "db:clear-demo:remote": "wrangler d1 execute DB --remote --file=scripts/clear-demo.sql"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.6.0",
+    "jose": "^5.9.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260820.1",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.10.0",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "wrangler": "^4.125.0"
+  }
+}

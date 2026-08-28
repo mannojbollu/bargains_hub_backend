@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bookish-bargains-hub-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // Non-secret config, safe to check in. Everything credential-shaped (JWT signing
+  // secret, etc.) is deliberately NOT here — those go through `wrangler secret put`
+  // for the deployed Worker, and `.dev.vars` (gitignored) for local dev.
+  "vars": {
+    // Comma-separated list of origins allowed to call this API with credentials.
+    "FRONTEND_ORIGIN": "http://localhost:8080"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bookish-bargains-hub-db",
+      "database_id": "5e926545-280e-4e0a-a7bb-716a5e99470f",
+      "migrations_dir": "drizzle/migrations"
+    }
+  ]
+  // R2 bucket binding — add once R2 is enabled on the account (see README) and
+  // `wrangler r2 bucket create bookish-bargains-hub-assets` has been run:
+  //
+  // "r2_buckets": [
+  //   {
+  //     "binding": "BUCKET",
+  //     "bucket_name": "bookish-bargains-hub-assets"
+  //   }
+  // ]
+}

@@ -1,0 +1,5 @@
+# Copy to .dev.vars for local `wrangler dev` (gitignored — never commit real secrets).
+# For the deployed Worker, set the real value with: wrangler secret put JWT_SECRET
+
+# Any long random string — e.g. `openssl rand -base64 48`
+JWT_SECRET=change-me-to-a-long-random-string
