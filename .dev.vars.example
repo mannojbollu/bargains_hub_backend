@@ -3,3 +3,18 @@
 
 # Any long random string — e.g. `openssl rand -base64 48`
 JWT_SECRET=change-me-to-a-long-random-string
+
+# Stripe test-mode keys (dashboard.stripe.com/test/apikeys). For local dev, run
+# `stripe listen --forward-to localhost:8787/api/stripe/webhook` — it prints a
+# webhook signing secret (whsec_...) to use below.
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# Shared secrets with the warehouse worker (bargainbooks-worker). Any long random
+# string on each side — e.g. `openssl rand -base64 32` — but the two ends of each
+# pair must match exactly:
+#   WAREHOUSE_API_KEY here    == ECOM_API_KEY on the warehouse worker
+#   WAREHOUSE_WEBHOOK_KEY here == ECOM_WEBHOOK_SECRET on the warehouse worker
+WAREHOUSE_API_KEY=change-me-to-a-long-random-string
+WAREHOUSE_WEBHOOK_URL=https://bargainbooks-worker.books-456.workers.dev/api/webhooks/ecom
+WAREHOUSE_WEBHOOK_KEY=change-me-to-a-long-random-string

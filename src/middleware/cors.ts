@@ -13,7 +13,7 @@ export function corsMiddleware() {
       return origin && allowed.includes(origin) ? origin : allowed[0] ?? "";
     },
     credentials: true,
-    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
   });
 }

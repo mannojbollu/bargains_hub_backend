@@ -1,8 +1,9 @@
 import { z } from "zod";
 
-// Deliberately no payment fields — there's no real payment gateway wired up, so the
-// backend only ever needs contact/shipping details and the cart contents. Prices are
-// never trusted from the client; the order service re-prices every line from `books`.
+// No card/payment fields here — those are collected on Stripe's own hosted
+// Checkout page, never by this API. This only carries contact/shipping details
+// and the cart contents; prices are never trusted from the client, the order
+// service re-prices every line from `books`.
 export const createOrderSchema = z.object({
   email: z.string().email(),
   firstName: z.string().min(1).max(120),

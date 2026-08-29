@@ -11,6 +11,7 @@ import { wishlist } from "@/routes/wishlist";
 import { uploads } from "@/routes/uploads";
 import { isbn } from "@/routes/isbn";
 import { images } from "@/routes/images";
+import { stripeWebhook } from "@/routes/stripe-webhook";
 import type { Env, Variables } from "@/types/env";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -28,5 +29,8 @@ app.route("/api/wishlist", wishlist);
 app.route("/api/uploads", uploads);
 app.route("/api/isbn", isbn);
 app.route("/api/images", images);
+// Server-to-server call from Stripe, not the frontend — no cookie, signed with
+// STRIPE_WEBHOOK_SECRET instead of session auth. See stripe-webhook.ts.
+app.route("/api/stripe/webhook", stripeWebhook);
 
 export default app;

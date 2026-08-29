@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "bookish-bargains-hub-api",
+  "name": "bargains-hub-backend",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -9,7 +9,11 @@
   // for the deployed Worker, and `.dev.vars` (gitignored) for local dev.
   "vars": {
     // Comma-separated list of origins allowed to call this API with credentials.
-    "FRONTEND_ORIGIN": "http://localhost:8080"
+    "FRONTEND_ORIGIN": "http://localhost:8080,https://bookish-bargains-hub.books-456.workers.dev,https://bargainnewbooks.com,https://www.bargainnewbooks.com",
+    // Where this backend reports its own sales to the warehouse worker. The keys
+    // used to authenticate both directions (WAREHOUSE_API_KEY, WAREHOUSE_WEBHOOK_KEY)
+    // are secrets -- see README / .dev.vars.example, not here.
+    "WAREHOUSE_WEBHOOK_URL": "https://bargainbooks-worker.books-456.workers.dev/api/webhooks/ecom"
   },
   "d1_databases": [
     {

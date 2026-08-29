@@ -33,6 +33,10 @@ export const books = sqliteTable("books", {
   stock: text("stock", { enum: ["in_stock", "low_stock", "out_of_stock", "pre_order"] })
     .notNull()
     .default("in_stock"),
+  // Real copy count, mainly kept in sync from the warehouse's marketplace push. `stock`
+  // above is still the field the storefront renders from — this backs it for anything
+  // that pushes an exact quantity instead of a status.
+  stockQuantity: integer("stock_quantity").notNull().default(0),
   publisher: text("publisher").notNull(),
   pages: integer("pages").notNull(),
   language: text("language").notNull(),
@@ -96,13 +100,19 @@ export const orders = sqliteTable("orders", {
   couponCode: text("coupon_code"),
   status: text("status", { enum: ["pending", "paid", "fulfilled", "cancelled"] })
     .notNull()
-    .default("paid"),
+    .default("pending"),
+  // Set once a Checkout Session is created; the webhook uses it to find the
+  // order to finalize. Payment is only ever confirmed server-side via the
+  // signed Stripe webhook — never trust the client's post-payment redirect.
+  stripeSessionId: text("stripe_session_id"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(current_timestamp)`),
 }, (t) => ({
   orderNumberIdx: uniqueIndex("orders_order_number_idx").on(t.orderNumber),
   userIdx: index("orders_user_idx").on(t.userId),
+  stripeSessionIdx: uniqueIndex("orders_stripe_session_idx").on(t.stripeSessionId),
 }));
 
 export const orderItems = sqliteTable("order_items", {

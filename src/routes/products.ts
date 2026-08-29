@@ -7,12 +7,21 @@ import { paginate } from "@/lib/pagination";
 import { newId } from "@/lib/ids";
 import { slugify, uniqueSlug } from "@/lib/slug";
 import { HttpError } from "@/lib/http-error";
-import { requireAdmin, requireAuth } from "@/middleware/auth";
+import { requireAdmin, requireAdminOrApiKey, requireAuth } from "@/middleware/auth";
 import type { Env, Variables } from "@/types/env";
 
 export const products = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 const DEFAULT_PER_PAGE = 12;
+
+// Whenever a caller supplies an exact stockQuantity (the warehouse push, mainly),
+// `stock` is derived from it server-side rather than trusted separately, so the
+// two fields can't drift out of sync with each other.
+function deriveStockFromQuantity(quantity: number): "in_stock" | "low_stock" | "out_of_stock" {
+  if (quantity <= 0) return "out_of_stock";
+  if (quantity <= 2) return "low_stock";
+  return "in_stock";
+}
 
 products.get("/", async (c) => {
   const query = productQuerySchema.parse(c.req.query());
@@ -74,7 +83,7 @@ products.get("/", async (c) => {
   return c.json(paginate(items, rows.length, page, perPage));
 });
 
-products.post("/", requireAuth, requireAdmin, async (c) => {
+products.post("/", requireAdminOrApiKey, async (c) => {
   const body = createBookSchema.parse(await c.req.json());
   const db = getDb(c.env.DB);
 
@@ -82,22 +91,24 @@ products.post("/", requireAuth, requireAdmin, async (c) => {
   const slug = uniqueSlug(body.title, new Set(existingSlugs.map((s) => s.slug)));
 
   const id = newId();
-  await db.insert(books).values({ id, slug, rating: 0, reviewCount: 0, ...body });
+  const stock = body.stockQuantity !== undefined ? deriveStockFromQuantity(body.stockQuantity) : body.stock;
+  await db.insert(books).values({ id, slug, rating: 0, reviewCount: 0, ...body, stock });
 
   const [created] = await db.select().from(books).where(eq(books.id, id)).limit(1);
   return c.json(created, 201);
 });
 
-products.patch("/:id", requireAuth, requireAdmin, async (c) => {
+products.patch("/:id", requireAdminOrApiKey, async (c) => {
   const id = c.req.param("id");
   const db = getDb(c.env.DB);
   const [existing] = await db.select({ id: books.id }).from(books).where(eq(books.id, id)).limit(1);
   if (!existing) throw new HttpError(404, "Book not found");
 
   const body = updateBookSchema.parse(await c.req.json());
+  const stock = body.stockQuantity !== undefined ? deriveStockFromQuantity(body.stockQuantity) : body.stock;
   await db
     .update(books)
-    .set({ ...body, updatedAt: sql`(current_timestamp)` })
+    .set({ ...body, ...(stock !== undefined ? { stock } : {}), updatedAt: sql`(current_timestamp)` })
     .where(eq(books.id, id));
 
   const [updated] = await db.select().from(books).where(eq(books.id, id)).limit(1);

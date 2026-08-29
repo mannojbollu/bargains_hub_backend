@@ -25,3 +25,27 @@ export const requireAdmin = createMiddleware<{ Bindings: Env; Variables: Variabl
   if (c.get("user")?.role !== "admin") throw new HttpError(403, "Admin access required");
   await next();
 });
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+/**
+ * Admin routes the warehouse's sync job also needs to call server-to-server, with
+ * no browser session available. A matching `X-Api-Key` header skips the cookie/role
+ * check entirely; otherwise this falls back to the normal admin login flow.
+ */
+export const requireAdminOrApiKey = createMiddleware<{ Bindings: Env; Variables: Variables }>(async (c, next) => {
+  const apiKey = c.req.header("X-Api-Key");
+  if (apiKey && timingSafeEqual(apiKey, c.env.WAREHOUSE_API_KEY)) {
+    await next();
+    return;
+  }
+  const user = c.get("user");
+  if (!user) throw new HttpError(401, "Login required");
+  if (user.role !== "admin") throw new HttpError(403, "Admin access required");
+  await next();
+});

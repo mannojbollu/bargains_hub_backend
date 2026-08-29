@@ -8,6 +8,20 @@
       "when": 1787873136875,
       "tag": "0000_huge_eddie_brock",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788033158301,
+      "tag": "0001_first_firebird",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788043614216,
+      "tag": "0002_keen_the_renegades",
+      "breakpoints": true
     }
   ]
 }

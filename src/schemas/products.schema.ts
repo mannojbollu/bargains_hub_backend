@@ -44,6 +44,9 @@ export const createBookSchema = z.object({
   price: z.number().positive(),
   originalPrice: z.number().positive(),
   stock: stockStatus.default("in_stock"),
+  // When present, the route derives `stock` from this instead of trusting the
+  // `stock` field above directly — see products.ts.
+  stockQuantity: z.number().int().min(0).optional(),
   publisher: z.string().min(1).max(200),
   pages: z.number().int().positive(),
   language: z.string().min(1).max(60),
