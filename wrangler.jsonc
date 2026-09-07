@@ -22,14 +22,11 @@
       "database_id": "5e926545-280e-4e0a-a7bb-716a5e99470f",
       "migrations_dir": "drizzle/migrations"
     }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "bookish-bargains-hub-assets"
+    }
   ]
-  // R2 bucket binding — add once R2 is enabled on the account (see README) and
-  // `wrangler r2 bucket create bookish-bargains-hub-assets` has been run:
-  //
-  // "r2_buckets": [
-  //   {
-  //     "binding": "BUCKET",
-  //     "bucket_name": "bookish-bargains-hub-assets"
-  //   }
-  // ]
 }
