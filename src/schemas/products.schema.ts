@@ -18,7 +18,9 @@ export const productQuerySchema = z.object({
     .enum(["relevance", "price-asc", "price-desc", "newest", "bestselling", "rating", "deals"])
     .optional(),
   page: z.coerce.number().int().positive().optional(),
-  perPage: z.coerce.number().int().positive().max(48).optional(),
+  // Public shop pages only ever request small pages (12); the admin book table
+  // asks for up to 100 at once so it can show the whole catalog on one screen.
+  perPage: z.coerce.number().int().positive().max(200).optional(),
 });
 
 export const searchSuggestQuerySchema = z.object({

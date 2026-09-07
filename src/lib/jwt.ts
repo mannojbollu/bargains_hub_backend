@@ -1,29 +1,28 @@
 import { SignJWT, jwtVerify } from "jose";
-import type { AuthUser } from "@/types/env";
 
 const SESSION_DURATION = "7d";
 
-export async function signSession(user: AuthUser, secret: string): Promise<string> {
+// Deliberately carries only the user id, nothing else. Authorization-relevant
+// fields (role, above all) are never trusted from the token — attachUser
+// re-reads the current row from the database on every request instead, so
+// revoking/changing a user's role takes effect immediately rather than only
+// once their existing session expires (up to 7 days later).
+export async function signSession(userId: string, secret: string): Promise<string> {
   const key = new TextEncoder().encode(secret);
-  return new SignJWT({ email: user.email, name: user.name, role: user.role })
+  return new SignJWT({})
     .setProtectedHeader({ alg: "HS256" })
-    .setSubject(user.id)
+    .setSubject(userId)
     .setIssuedAt()
     .setExpirationTime(SESSION_DURATION)
     .sign(key);
 }
 
-export async function verifySession(token: string, secret: string): Promise<AuthUser | null> {
+/** Verifies the token's signature/expiry and returns the user id it was issued for. */
+export async function verifySessionUserId(token: string, secret: string): Promise<string | null> {
   try {
     const key = new TextEncoder().encode(secret);
     const { payload } = await jwtVerify(token, key);
-    if (typeof payload.sub !== "string") return null;
-    return {
-      id: payload.sub,
-      email: String(payload["email"]),
-      name: String(payload["name"]),
-      role: payload["role"] === "admin" ? "admin" : "customer",
-    };
+    return typeof payload.sub === "string" ? payload.sub : null;
   } catch {
     return null;
   }

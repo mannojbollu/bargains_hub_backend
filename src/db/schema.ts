@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, real, uniqueIndex, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, uniqueIndex, index, primaryKey } from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -156,3 +156,19 @@ export const coupons = sqliteTable("coupons", {
     .notNull()
     .default(sql`(current_timestamp)`),
 });
+
+// Fixed-window brute-force counter for auth endpoints. `key` is typically
+// `${ip}:${route}`; `windowStart` buckets requests into fixed time windows
+// (see lib/rate-limit.ts) so a plain upsert-and-increment is enough — no
+// need for a sliding-window structure for this.
+export const rateLimits = sqliteTable(
+  "rate_limits",
+  {
+    key: text("key").notNull(),
+    windowStart: integer("window_start").notNull(),
+    count: integer("count").notNull().default(1),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.key, t.windowStart] }),
+  }),
+);

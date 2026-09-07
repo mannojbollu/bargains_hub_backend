@@ -1,15 +1,36 @@
 import { createMiddleware } from "hono/factory";
 import { getCookie } from "hono/cookie";
-import { verifySession } from "@/lib/jwt";
+import { eq } from "drizzle-orm";
+import { verifySessionUserId } from "@/lib/jwt";
+import { getDb } from "@/db/client";
+import { users } from "@/db/schema";
 import { HttpError } from "@/lib/http-error";
-import type { Env, Variables } from "@/types/env";
+import type { AuthUser, Env, Variables } from "@/types/env";
 
 export const SESSION_COOKIE = "bnb_session";
 
-/** Reads the session cookie (if any) and attaches the user to context — never throws. */
+/**
+ * Reads the session cookie (if any) and attaches the user to context — never
+ * throws. The JWT only proves identity (a user id); role is always re-read
+ * fresh from the database here rather than trusted from the token, so a role
+ * change or account deletion takes effect on the very next request instead of
+ * only once a stale session naturally expires.
+ */
 export const attachUser = createMiddleware<{ Bindings: Env; Variables: Variables }>(async (c, next) => {
   const token = getCookie(c, SESSION_COOKIE);
-  const user = token ? await verifySession(token, c.env.JWT_SECRET) : null;
+  const userId = token ? await verifySessionUserId(token, c.env.JWT_SECRET) : null;
+
+  let user: AuthUser | null = null;
+  if (userId) {
+    const db = getDb(c.env.DB);
+    const [row] = await db
+      .select({ id: users.id, email: users.email, name: users.name, role: users.role })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (row) user = row;
+  }
+
   c.set("user", user);
   await next();
 });
