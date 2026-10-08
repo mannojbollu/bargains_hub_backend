@@ -12,6 +12,7 @@ import { uploads } from "@/routes/uploads";
 import { isbn } from "@/routes/isbn";
 import { images } from "@/routes/images";
 import { stripeWebhook } from "@/routes/stripe-webhook";
+import { diagnostics } from "@/routes/diagnostics";
 import { getDb } from "@/db/client";
 import { runScheduledJobs } from "@/lib/fulfillment";
 import type { Env, Variables } from "@/types/env";
@@ -34,6 +35,8 @@ app.route("/api/images", images);
 // Server-to-server call from Stripe, not the frontend — no cookie, signed with
 // STRIPE_WEBHOOK_SECRET instead of session auth. See stripe-webhook.ts.
 app.route("/api/stripe/webhook", stripeWebhook);
+// Admin-only live check of the Royal Mail + email setup. See diagnostics.ts.
+app.route("/api/diagnostics", diagnostics);
 
 export default {
   fetch: app.fetch,
