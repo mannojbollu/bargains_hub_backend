@@ -25,19 +25,21 @@ diagnostics.post("/", requireAdmin, async (c) => {
     const check: Record<string, unknown> = { keyAccepted: list.ok, status: list.status };
     if (!list.ok) check["error"] = (await list.text()).slice(0, 300);
     if (list.ok) {
+      const testContact = {
+        address: {
+          fullName: "TEST ORDER - PLEASE IGNORE",
+          addressLine1: "1 Test Street",
+          city: "London",
+          postcode: "SW1A 1AA",
+          countryCode: "GB",
+        },
+      };
       try {
         const ref = `TEST-DELETE-${Date.now() % 1_000_000}`;
         const id = await createClickDropOrder(key, {
           orderReference: ref,
-          recipient: {
-            address: {
-              fullName: "TEST ORDER - PLEASE IGNORE",
-              addressLine1: "1 Test Street",
-              city: "London",
-              postcode: "SW1A 1AA",
-              countryCode: "GB",
-            },
-          },
+          recipient: testContact,
+          billing: testContact,
           packages: [
             {
               weightInGrams: 410,

@@ -125,20 +125,23 @@ async function buildClickDropOrder(env: Env, db: Database, order: OrderRow): Pro
   const isSinglePaperback = units === 1 && items[0]?.format === "paperback";
   const format = isSinglePaperback && weight <= LARGE_LETTER_MAX_GRAMS ? "largeLetter" : "smallParcel";
 
+  const contact = {
+    address: {
+      fullName: `${order.firstName} ${order.lastName}`.slice(0, 210),
+      addressLine1: order.address.slice(0, 100),
+      addressLine2: order.addressLine2?.slice(0, 100) || undefined,
+      city: order.city.slice(0, 100),
+      postcode: order.postcode,
+      countryCode: "GB",
+    },
+    phoneNumber: order.phone || undefined,
+    emailAddress: order.email,
+  };
+
   return {
     orderReference: order.orderNumber,
-    recipient: {
-      address: {
-        fullName: `${order.firstName} ${order.lastName}`.slice(0, 210),
-        addressLine1: order.address.slice(0, 100),
-        addressLine2: order.addressLine2?.slice(0, 100) || undefined,
-        city: order.city.slice(0, 100),
-        postcode: order.postcode,
-        countryCode: "GB",
-      },
-      phoneNumber: order.phone || undefined,
-      emailAddress: order.email,
-    },
+    recipient: contact,
+    billing: contact,
     packages: [{ weightInGrams: weight, packageFormatIdentifier: format, contents }],
     orderDate: new Date(`${(order.paidAt ?? order.createdAt).replace(" ", "T")}Z`).toISOString(),
     subtotal: Math.round((order.subtotal - order.discount) * 100) / 100,

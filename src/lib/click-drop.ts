@@ -25,6 +25,9 @@ export interface ClickDropContentItem {
 export interface ClickDropCreateOrder {
   orderReference: string;
   recipient: { address: ClickDropAddress; phoneNumber?: string | undefined; emailAddress?: string };
+  // Click & Drop rejects orders without a billing address on some accounts — we
+  // always send the same details as the recipient (customers pay for themselves).
+  billing: { address: ClickDropAddress; phoneNumber?: string | undefined; emailAddress?: string };
   packages: {
     weightInGrams: number;
     packageFormatIdentifier: "largeLetter" | "smallParcel" | "mediumParcel";
@@ -99,14 +102,17 @@ export async function findClickDropOrderByReference(apiKey: string, reference: s
 export async function createClickDropOrder(apiKey: string, order: ClickDropCreateOrder): Promise<number> {
   const res = await request<{
     createdOrders?: { orderIdentifier: number }[];
-    failedOrders?: { errors?: { errorMessage?: string; fields?: unknown }[] }[];
+    failedOrders?: { errors?: { errorMessage?: string; fields?: { fieldName?: string; value?: unknown }[] }[] }[];
   }>(apiKey, "/orders", { method: "POST", body: JSON.stringify({ items: [order] }) });
 
   const created = res.createdOrders?.[0];
   if (created) return created.orderIdentifier;
 
   const messages = (res.failedOrders?.[0]?.errors ?? [])
-    .map((e) => e.errorMessage)
+    .map((e) => {
+      const fields = (e.fields ?? []).map((f) => f.fieldName).filter(Boolean);
+      return fields.length ? `${e.errorMessage} [${fields.join(", ")}]` : e.errorMessage;
+    })
     .filter(Boolean)
     .join("; ");
   throw new ClickDropError(422, messages || "Click & Drop rejected the order");
