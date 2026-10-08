@@ -75,6 +75,36 @@ Update `FRONTEND_ORIGIN` in `wrangler.jsonc` to the frontend's deployed URL (com
 separated if you need more than one, e.g. a preview + production domain) before
 deploying.
 
+## Royal Mail Click & Drop + customer emails
+
+What happens to an order after payment (`src/lib/fulfillment.ts`):
+
+1. **Paid** (Stripe webhook): the customer gets an *order confirmation* email, and the
+   order is created in Royal Mail Click & Drop with address, weight and parcel size.
+2. **Label printed** in Click & Drop: a cron job every 15 minutes picks this up, marks the
+   order shipped, stores the tracking number, and emails the customer a *tracking link*.
+   The "Sync Royal Mail" button on `/admin/orders` does the same check immediately.
+3. **7 days after dispatch** (`REVIEW_EMAIL_DELAY_DAYS`): the customer gets a *review
+   request* email linking to `REVIEW_URL` (e.g. Trustpilot/Google) and to each book's
+   review form on the site.
+
+Admin fallbacks on `/admin/orders`: "Mark as shipped" (with an optional tracking number,
+which also sends the shipped email), and "Send to Click & Drop" for failed/older orders.
+Orders placed before this feature existed are never pushed or emailed automatically.
+
+Setup:
+
+```bash
+npx wrangler secret put CLICK_DROP_API_KEY   # Click & Drop → Settings → Integrations → Click & Drop API
+npx wrangler secret put RESEND_API_KEY       # resend.com, after verifying the EMAIL_FROM domain
+npm run db:migrate:remote
+npm run deploy
+```
+
+Then set `REVIEW_URL` (and check `EMAIL_FROM` / `SITE_URL`) in `wrangler.jsonc`.
+Parcel weights are estimates (paperback 350g, hardback 700g + packaging). Check them in
+Click & Drop before printing a label.
+
 ## API
 
 All routes are under `/api`. See `src/routes/*.ts` for the full implementation.

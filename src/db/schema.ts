@@ -90,9 +90,12 @@ export const orders = sqliteTable("orders", {
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   address: text("address").notNull(),
+  addressLine2: text("address_line_2"),
   city: text("city").notNull(),
   postcode: text("postcode").notNull(),
   country: text("country").notNull(),
+  // Optional — passed to Royal Mail so tracked services can send SMS updates.
+  phone: text("phone"),
   subtotal: real("subtotal").notNull(),
   discount: real("discount").notNull().default(0),
   shipping: real("shipping").notNull(),
@@ -106,6 +109,23 @@ export const orders = sqliteTable("orders", {
   // signed Stripe webhook — never trust the client's post-payment redirect.
   stripeSessionId: text("stripe_session_id"),
   stripePaymentIntentId: text("stripe_payment_intent_id"),
+  paidAt: text("paid_at"),
+  // Royal Mail Click & Drop sync (see lib/click-drop.ts + lib/fulfillment.ts).
+  // "pending" = not pushed yet, "sending" = push in flight, "sent" = exists in
+  // Click & Drop, "failed" = push rejected (see clickDropError), "skipped" =
+  // order predates the integration and is never pushed automatically.
+  clickDropStatus: text("click_drop_status", { enum: ["pending", "sending", "sent", "failed", "skipped"] })
+    .notNull()
+    .default("pending"),
+  clickDropOrderId: integer("click_drop_order_id"),
+  clickDropError: text("click_drop_error"),
+  trackingNumber: text("tracking_number"),
+  shippedAt: text("shipped_at"),
+  // Each email is "claimed" by setting its timestamp before sending, so the
+  // webhook and the cron job can never both send the same one.
+  confirmationEmailSentAt: text("confirmation_email_sent_at"),
+  shippedEmailSentAt: text("shipped_email_sent_at"),
+  reviewEmailSentAt: text("review_email_sent_at"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(current_timestamp)`),

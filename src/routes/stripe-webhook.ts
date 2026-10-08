@@ -4,6 +4,7 @@ import type Stripe from "stripe";
 import { getDb } from "@/db/client";
 import { books, orderItems, orders } from "@/db/schema";
 import { getStripe, getStripeCryptoProvider } from "@/lib/stripe";
+import { onOrderPaid, sqlNow } from "@/lib/fulfillment";
 import type { Env, Variables } from "@/types/env";
 
 export const stripeWebhook = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -81,7 +82,7 @@ stripeWebhook.post("/", async (c) => {
         typeof session.payment_intent === "string" ? session.payment_intent : (session.payment_intent?.id ?? null);
       const result = await db
         .update(orders)
-        .set({ status: "paid", stripePaymentIntentId: paymentIntentId })
+        .set({ status: "paid", stripePaymentIntentId: paymentIntentId, paidAt: sqlNow() })
         // Only transition from "pending" — makes retried webhook deliveries a no-op.
         .where(and(eq(orders.id, orderId), eq(orders.status, "pending")));
 
@@ -90,6 +91,10 @@ stripeWebhook.post("/", async (c) => {
       if (result.meta.changes > 0) {
         const orderNumber = session.metadata?.["orderNumber"] ?? orderId;
         await notifyWarehouseOfSale(c.env, event.id, orderNumber, db, orderId);
+        // Confirmation email + Royal Mail Click & Drop push run after we've answered
+        // Stripe, so a slow email/Royal Mail API never makes Stripe retry the
+        // webhook. The cron job (lib/fulfillment.ts) retries anything that fails.
+        c.executionCtx.waitUntil(onOrderPaid(c.env, db, orderId));
       }
     }
   }

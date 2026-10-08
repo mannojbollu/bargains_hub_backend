@@ -2,11 +2,12 @@ import { Hono } from "hono";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { orderItems, orders } from "@/db/schema";
-import { createOrderSchema } from "@/schemas/orders.schema";
+import { createOrderSchema, fulfillOrderSchema } from "@/schemas/orders.schema";
 import { newId, newOrderNumber } from "@/lib/ids";
 import { HttpError } from "@/lib/http-error";
 import { priceLines } from "@/lib/pricing";
 import { getStripe } from "@/lib/stripe";
+import { markOrderShipped, pushOrderToClickDrop, syncClickDropShipments } from "@/lib/fulfillment";
 import { requireAdmin, requireAuth } from "@/middleware/auth";
 import type { Env, Variables } from "@/types/env";
 
@@ -47,9 +48,11 @@ ordersRoute.post("/", async (c) => {
     firstName: body.firstName,
     lastName: body.lastName,
     address: body.address,
+    addressLine2: body.addressLine2 || null,
     city: body.city,
     postcode: body.postcode,
     country: body.country,
+    phone: body.phone || null,
     subtotal,
     discount,
     shipping,
@@ -158,19 +161,47 @@ ordersRoute.get("/admin", requireAdmin, async (c) => {
   return c.json(rows.map((order) => ({ ...order, items: itemsByOrder.get(order.id) ?? [] })));
 });
 
-// Admin-only: mark a paid order as fulfilled once it's been shipped.
-ordersRoute.patch("/admin/:orderNumber/fulfill", requireAdmin, async (c) => {
-  const db = getDb(c.env.DB);
+async function findOrderId(db: ReturnType<typeof getDb>, orderNumber: string) {
   const [order] = await db
     .select({ id: orders.id, status: orders.status })
     .from(orders)
-    .where(eq(orders.orderNumber, c.req.param("orderNumber")))
+    .where(eq(orders.orderNumber, orderNumber))
     .limit(1);
   if (!order) throw new HttpError(404, "Order not found");
+  return order;
+}
+
+// Admin-only: mark a paid order as shipped (optionally with a Royal Mail tracking
+// number) and email the customer. Orders pushed to Click & Drop normally get this
+// automatically once their label is printed — this is the manual override.
+ordersRoute.patch("/admin/:orderNumber/fulfill", requireAdmin, async (c) => {
+  const db = getDb(c.env.DB);
+  const body = fulfillOrderSchema.parse(await c.req.json().catch(() => ({})));
+  const order = await findOrderId(db, c.req.param("orderNumber"));
   if (order.status !== "paid") throw new HttpError(409, "Only paid orders can be marked fulfilled");
 
-  await db.update(orders).set({ status: "fulfilled" }).where(eq(orders.id, order.id));
+  await markOrderShipped(c.env, db, order.id, { trackingNumber: body.trackingNumber });
   return c.json({ ok: true });
+});
+
+// Admin-only: (re)send one order to Royal Mail Click & Drop — for orders that
+// failed validation there, or that were placed before the integration existed.
+ordersRoute.post("/admin/:orderNumber/click-drop", requireAdmin, async (c) => {
+  const db = getDb(c.env.DB);
+  const order = await findOrderId(db, c.req.param("orderNumber"));
+  if (order.status !== "paid") throw new HttpError(409, "Only paid, unshipped orders can be sent to Click & Drop");
+
+  const result = await pushOrderToClickDrop(c.env, db, order.id, { force: true });
+  if (!result.ok) throw new HttpError(422, result.error ?? "Click & Drop push failed");
+  return c.json({ ok: true });
+});
+
+// Admin-only: check Click & Drop for printed labels right now instead of waiting
+// for the next 15-minute cron run.
+ordersRoute.post("/admin/sync-click-drop", requireAdmin, async (c) => {
+  if (!c.env.CLICK_DROP_API_KEY) throw new HttpError(503, "Click & Drop isn't configured (CLICK_DROP_API_KEY)");
+  const db = getDb(c.env.DB);
+  return c.json(await syncClickDropShipments(c.env, db));
 });
 
 ordersRoute.get("/:orderNumber", async (c) => {

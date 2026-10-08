@@ -13,7 +13,23 @@
     // Where this backend reports its own sales to the warehouse worker. The keys
     // used to authenticate both directions (WAREHOUSE_API_KEY, WAREHOUSE_WEBHOOK_KEY)
     // are secrets -- see README / .dev.vars.example, not here.
-    "WAREHOUSE_WEBHOOK_URL": "https://bargainbooks-worker.books-456.workers.dev/api/webhooks/ecom"
+    "WAREHOUSE_WEBHOOK_URL": "https://bargainbooks-worker.books-456.workers.dev/api/webhooks/ecom",
+    // Customer emails (sent via Resend — RESEND_API_KEY is a secret). EMAIL_FROM's
+    // domain must be verified in Resend first.
+    "SITE_URL": "https://bargainnewbooks.com",
+    "EMAIL_FROM": "BargainNewBooks <orders@bargainnewbooks.com>",
+    "EMAIL_REPLY_TO": "hello@bargainnewbooks.co.uk",
+    // Where the post-delivery email asks customers to review the shop, e.g. your
+    // Trustpilot or Google review link. Leave empty to only link to book reviews.
+    "REVIEW_URL": "",
+    "REVIEW_EMAIL_DELAY_DAYS": "7"
+    // Royal Mail Click & Drop: CLICK_DROP_API_KEY is a secret. Optionally add
+    // "CLICK_DROP_SERVICE_CODE" here to preselect a service on every order.
+  },
+  // Every 15 minutes: pick up labels printed in Click & Drop, email tracking links,
+  // send review requests. See src/lib/fulfillment.ts.
+  "triggers": {
+    "crons": ["*/15 * * * *"]
   },
   "d1_databases": [
     {

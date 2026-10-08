@@ -12,6 +12,8 @@ import { uploads } from "@/routes/uploads";
 import { isbn } from "@/routes/isbn";
 import { images } from "@/routes/images";
 import { stripeWebhook } from "@/routes/stripe-webhook";
+import { getDb } from "@/db/client";
+import { runScheduledJobs } from "@/lib/fulfillment";
 import type { Env, Variables } from "@/types/env";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -33,4 +35,11 @@ app.route("/api/images", images);
 // STRIPE_WEBHOOK_SECRET instead of session auth. See stripe-webhook.ts.
 app.route("/api/stripe/webhook", stripeWebhook);
 
-export default app;
+export default {
+  fetch: app.fetch,
+  // Cron trigger (see "triggers" in wrangler.jsonc): syncs Royal Mail Click & Drop
+  // shipments and sends the shipped / review emails. See lib/fulfillment.ts.
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(runScheduledJobs(env, getDb(env.DB)));
+  },
+} satisfies ExportedHandler<Env>;

@@ -18,3 +18,12 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 WAREHOUSE_API_KEY=change-me-to-a-long-random-string
 WAREHOUSE_WEBHOOK_URL=https://bargainbooks-worker.books-456.workers.dev/api/webhooks/ecom
 WAREHOUSE_WEBHOOK_KEY=change-me-to-a-long-random-string
+
+# Customer emails via Resend (resend.com → API Keys). Leave unset locally to skip
+# sending — order flow still works, emails are just logged as skipped.
+# RESEND_API_KEY=re_...
+
+# Royal Mail Click & Drop API key (Click & Drop → Settings → Integrations →
+# Click & Drop API). Leave unset locally unless you want test orders to appear
+# in your real Click & Drop account.
+# CLICK_DROP_API_KEY=...
