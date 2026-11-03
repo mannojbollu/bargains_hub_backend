@@ -49,8 +49,8 @@ diagnostics.post("/", requireAdmin, async (c) => {
           ],
           orderDate: new Date().toISOString(),
           subtotal: 5,
-          shippingCostCharged: 2.99,
-          total: 7.99,
+          shippingCostCharged: 0,
+          total: 5,
           currencyCode: "GBP",
           postageDetails: { sendNotificationsTo: "recipient" },
         });
@@ -64,6 +64,8 @@ diagnostics.post("/", requireAdmin, async (c) => {
     results["clickDrop"] = check;
   }
 
+  const sampleItems = [{ title: "Test Book", qty: 1, price: 8.99, format: "paperback", slug: null }];
+  const sampleSubtotal = sampleItems.reduce((sum, i) => sum + i.price * i.qty, 0);
   const sample: EmailOrder = {
     orderNumber: "BNB-TEST01",
     firstName: "Test",
@@ -72,12 +74,12 @@ diagnostics.post("/", requireAdmin, async (c) => {
     addressLine2: null,
     city: "London",
     postcode: "SW1A 1AA",
-    subtotal: 8.99,
+    subtotal: sampleSubtotal,
     discount: 0,
-    shipping: 2.99,
-    total: 11.98,
+    shipping: 0,
+    total: sampleSubtotal,
     trackingNumber: "TT123456789GB",
-    items: [{ title: "Test Book", qty: 1, price: 8.99, format: "paperback", slug: null }],
+    items: sampleItems,
   };
   const emails: Record<string, unknown> = { from: c.env.EMAIL_FROM, to: adminEmail };
   for (const [name, tmpl] of [

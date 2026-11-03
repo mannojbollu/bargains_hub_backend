@@ -11,6 +11,7 @@ import {
 import {
   orderConfirmationEmail,
   orderShippedEmail,
+  refundEmail,
   reviewRequestEmail,
   sendEmail,
   type EmailOrder,
@@ -94,6 +95,41 @@ export async function sendOrderEmail(env: Env, db: Database, orderId: string, ki
     await db.update(orders).set({ [EMAIL_FIELD[kind]]: null }).where(eq(orders.id, orderId));
     console.error(`Failed to send ${kind} email for order`, orderId, err);
     return false;
+  }
+}
+
+/**
+ * Mirrors a Stripe refund onto the order and emails the customer. `refundedTotal` is
+ * the charge's cumulative refunded amount, so a retried or out-of-order webhook that
+ * doesn't raise it is a no-op. Stock isn't touched: the warehouse owns stock counts,
+ * so returned copies are re-added there once they're back and checked.
+ */
+export async function onOrderRefunded(
+  env: Env,
+  db: Database,
+  paymentIntentId: string,
+  refundedTotal: number,
+  fullRefund: boolean,
+): Promise<void> {
+  const [order] = await db.select().from(orders).where(eq(orders.stripePaymentIntentId, paymentIntentId)).limit(1);
+  if (!order) return;
+
+  const result = await db
+    .update(orders)
+    .set({
+      refundedAmount: refundedTotal,
+      refundedAt: sqlNow(),
+      ...(fullRefund ? { status: "refunded" as const } : {}),
+    })
+    .where(and(eq(orders.id, order.id), sql`${orders.refundedAmount} < ${refundedTotal}`));
+  if (result.meta.changes === 0) return;
+
+  try {
+    const amount = Math.round((refundedTotal - order.refundedAmount) * 100) / 100;
+    const msg = refundEmail(env, await loadEmailOrder(db, order), amount, fullRefund);
+    await sendEmail(env, { to: order.email, ...msg });
+  } catch (err) {
+    console.error("Failed to send refund email for order", order.orderNumber, err);
   }
 }
 

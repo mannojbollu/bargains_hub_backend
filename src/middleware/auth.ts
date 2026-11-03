@@ -59,6 +59,12 @@ function timingSafeEqual(a: string, b: string): boolean {
  * no browser session available. A matching `X-Api-Key` header skips the cookie/role
  * check entirely; otherwise this falls back to the normal admin login flow.
  */
+/** True when the request carries the warehouse's server-to-server API key. */
+export function isWarehouseRequest(c: { req: { header: (name: string) => string | undefined }; env: Env }): boolean {
+  const apiKey = c.req.header("X-Api-Key");
+  return !!apiKey && !!c.env.WAREHOUSE_API_KEY && timingSafeEqual(apiKey, c.env.WAREHOUSE_API_KEY);
+}
+
 export const requireAdminOrApiKey = createMiddleware<{ Bindings: Env; Variables: Variables }>(async (c, next) => {
   const apiKey = c.req.header("X-Api-Key");
   if (apiKey && timingSafeEqual(apiKey, c.env.WAREHOUSE_API_KEY)) {

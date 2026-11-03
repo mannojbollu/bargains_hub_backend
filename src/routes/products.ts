@@ -7,7 +7,8 @@ import { paginate } from "@/lib/pagination";
 import { newId } from "@/lib/ids";
 import { slugify, uniqueSlug } from "@/lib/slug";
 import { HttpError } from "@/lib/http-error";
-import { requireAdmin, requireAdminOrApiKey, requireAuth } from "@/middleware/auth";
+import { isWarehouseRequest, requireAdmin, requireAdminOrApiKey, requireAuth } from "@/middleware/auth";
+import { pendingReservedQty } from "@/lib/stock";
 import type { Env, Variables } from "@/types/env";
 
 export const products = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -105,6 +106,11 @@ products.patch("/:id", requireAdminOrApiKey, async (c) => {
   if (!existing) throw new HttpError(404, "Book not found");
 
   const body = updateBookSchema.parse(await c.req.json());
+  // The warehouse pushes the website's whole share; copies already reserved by unpaid
+  // checkouts come out of that share, so they're subtracted (see lib/stock.ts).
+  if (body.stockQuantity !== undefined && isWarehouseRequest(c)) {
+    body.stockQuantity = Math.max(0, body.stockQuantity - (await pendingReservedQty(c.env.DB, id)));
+  }
   const stock = body.stockQuantity !== undefined ? deriveStockFromQuantity(body.stockQuantity) : body.stock;
   await db
     .update(books)

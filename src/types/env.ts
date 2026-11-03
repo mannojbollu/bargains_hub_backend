@@ -18,6 +18,8 @@ export interface Env {
   RESEND_API_KEY?: string;
   EMAIL_FROM: string;
   EMAIL_REPLY_TO?: string;
+  // Inbox that receives messages from the website's contact form.
+  CONTACT_EMAIL?: string;
   // Where the review email sends people to review the shop (Trustpilot, Google
   // reviews, …). If unset, the email only links to the books on our own site.
   REVIEW_URL?: string;

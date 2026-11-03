@@ -8,7 +8,7 @@ import { royalMailTrackingUrl } from "@/lib/click-drop";
  */
 export async function sendEmail(
   env: Env,
-  msg: { to: string; subject: string; html: string; text: string },
+  msg: { to: string; subject: string; html: string; text: string; replyTo?: string },
 ): Promise<boolean> {
   if (!env.RESEND_API_KEY) {
     console.warn("RESEND_API_KEY not set — skipping email", msg.subject, msg.to);
@@ -20,7 +20,7 @@ export async function sendEmail(
     body: JSON.stringify({
       from: env.EMAIL_FROM,
       to: [msg.to],
-      reply_to: env.EMAIL_REPLY_TO || undefined,
+      reply_to: msg.replyTo || env.EMAIL_REPLY_TO || undefined,
       subject: msg.subject,
       html: msg.html,
       text: msg.text,
@@ -49,6 +49,7 @@ export interface EmailOrder {
   shipping: number;
   total: number;
   trackingNumber: string | null;
+  accessToken?: string | null;
   items: { title: string; qty: number; price: number; format: string; slug: string | null }[];
 }
 
@@ -113,9 +114,15 @@ function itemsText(order: EmailOrder) {
   return order.items.map((i) => `- ${i.title} (${i.format}) x${i.qty}  ${money(i.price * i.qty)}`).join("\n");
 }
 
+// Carries the order's access token, so guests (who have no login) can open it too.
+function orderLink(site: string, order: EmailOrder) {
+  const base = `${site}/order/${order.orderNumber}`;
+  return order.accessToken ? `${base}?token=${order.accessToken}` : base;
+}
+
 export function orderConfirmationEmail(env: Env, order: EmailOrder) {
   const site = env.SITE_URL.replace(/\/$/, "");
-  const orderUrl = `${site}/order/${order.orderNumber}`;
+  const orderUrl = orderLink(site, order);
   const html = layout(
     env,
     `Thanks for your order ${order.orderNumber} — we're getting it ready.`,
@@ -148,7 +155,7 @@ export function orderShippedEmail(env: Env, order: EmailOrder) {
 <p style="margin:0 0 20px;font-size:18px;font-weight:700;letter-spacing:0.5px">${esc(order.trackingNumber!)}</p>
 ${button(trackUrl, "Track your parcel")}`
     : `<p style="margin:0 0 20px">It's travelling with Royal Mail and usually arrives within 2–4 working days.</p>
-${button(`${site}/order/${order.orderNumber}`, "View your order")}`;
+${button(orderLink(site, order), "View your order")}`;
   const html = layout(
     env,
     `Your order ${order.orderNumber} is on its way with Royal Mail.`,
@@ -198,4 +205,74 @@ ${books.map((i) => `Rate "${i.title}": ${site}/book/${i.slug}?review=1`).join("\
 
 Something not right? Just reply to this email.`;
   return { subject: `How were your books? Tell us about your ${BRAND} order`, html, text };
+}
+
+export function refundEmail(env: Env, order: EmailOrder, amount: number, fullRefund: boolean) {
+  const site = env.SITE_URL.replace(/\/$/, "");
+  const html = layout(
+    env,
+    `We've refunded ${money(amount)} for order ${order.orderNumber}.`,
+    `<h1 style="font-family:Georgia,serif;font-size:24px;margin:0 0 8px">Your refund is on its way</h1>
+<p style="margin:0 0 16px">Hi ${esc(order.firstName)}, we've ${fullRefund ? "fully refunded" : "issued a refund for"} order <strong>${esc(order.orderNumber)}</strong>.</p>
+<p style="margin:0 0 4px;color:${MUTED};font-size:13px">AMOUNT REFUNDED</p>
+<p style="margin:0 0 16px;font-size:18px;font-weight:700">${money(amount)}</p>
+<p style="margin:0 0 24px">It goes back to the card you paid with. Banks usually take 5–10 working days to show it on your statement.</p>
+${button(orderLink(site, order), "View your order")}`,
+  );
+  const text = `Your refund is on its way
+
+Hi ${order.firstName}, we've ${fullRefund ? "fully refunded" : "issued a refund for"} order ${order.orderNumber}.
+Amount refunded: ${money(amount)}
+
+It goes back to the card you paid with. Banks usually take 5–10 working days to show it on your statement.`;
+  return { subject: `Refund for order ${order.orderNumber}`, html, text };
+}
+
+export function passwordResetEmail(env: Env, name: string, resetUrl: string) {
+  const html = layout(
+    env,
+    "Reset your BargainNewBooks password",
+    `<h1 style="font-family:Georgia,serif;font-size:24px;margin:0 0 8px">Reset your password</h1>
+<p style="margin:0 0 16px">Hi ${esc(name)}, we got a request to reset the password for your BargainNewBooks account. Click below to choose a new one. The link works for 1 hour.</p>
+${button(resetUrl, "Choose a new password")}
+<p style="margin:16px 0 0;color:${MUTED};font-size:13px">If you didn't ask for this, you can ignore this email — your password won't change.</p>`,
+  );
+  const text = `Hi ${name}, we got a request to reset the password for your BargainNewBooks account.
+
+Choose a new password (link works for 1 hour): ${resetUrl}
+
+If you didn't ask for this, you can ignore this email — your password won't change.`;
+  return { subject: "Reset your BargainNewBooks password", html, text };
+}
+
+export interface ContactMessage {
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+}
+
+/** Internal notification for a contact-form message; replying goes straight to the customer. */
+export function contactFormEmail(env: Env, msg: ContactMessage) {
+  const html = layout(
+    env,
+    `New message from ${msg.name}`,
+    `<h1 style="font-family:Georgia,serif;font-size:22px;margin:0 0 12px">New contact form message</h1>
+<p style="margin:0 0 4px;color:${MUTED};font-size:13px">FROM</p>
+<p style="margin:0 0 12px">${esc(msg.name)} &lt;${esc(msg.email)}&gt;</p>
+<p style="margin:0 0 4px;color:${MUTED};font-size:13px">SUBJECT</p>
+<p style="margin:0 0 12px">${esc(msg.subject)}</p>
+<p style="margin:0 0 4px;color:${MUTED};font-size:13px">MESSAGE</p>
+<p style="margin:0 0 20px;white-space:pre-wrap">${esc(msg.message)}</p>
+<p style="margin:0;color:${MUTED};font-size:13px">Reply to this email to answer ${esc(msg.name)} directly.</p>`,
+  );
+  const text = `New contact form message
+
+From: ${msg.name} <${msg.email}>
+Subject: ${msg.subject}
+
+${msg.message}
+
+Reply to this email to answer ${msg.name} directly.`;
+  return { subject: `[Contact] ${msg.subject}`, html, text };
 }

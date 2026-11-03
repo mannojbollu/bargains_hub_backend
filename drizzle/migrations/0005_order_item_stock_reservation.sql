@@ -1,0 +1,1 @@
+ALTER TABLE `order_items` ADD `reserved_qty` integer DEFAULT 0 NOT NULL;

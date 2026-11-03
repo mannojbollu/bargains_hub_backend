@@ -84,7 +84,7 @@ What happens to an order after payment (`src/lib/fulfillment.ts`):
 2. **Label printed** in Click & Drop: a cron job every 15 minutes picks this up, marks the
    order shipped, stores the tracking number, and emails the customer a *tracking link*.
    The "Sync Royal Mail" button on `/admin/orders` does the same check immediately.
-3. **7 days after dispatch** (`REVIEW_EMAIL_DELAY_DAYS`): the customer gets a *review
+3. **5 days after dispatch** (`REVIEW_EMAIL_DELAY_DAYS`): the customer gets a *review
    request* email linking to `REVIEW_URL` (e.g. Trustpilot/Google) and to each book's
    review form on the site.
 

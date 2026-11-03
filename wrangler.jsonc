@@ -18,11 +18,13 @@
     // domain must be verified in Resend first.
     "SITE_URL": "https://bargainnewbooks.com",
     "EMAIL_FROM": "BargainNewBooks <orders@bargainnewbooks.com>",
-    "EMAIL_REPLY_TO": "hello@bargainnewbooks.co.uk",
+    "EMAIL_REPLY_TO": "contact@bargainnewbooks.com",
+    // Where messages from the website's contact form are delivered.
+    "CONTACT_EMAIL": "contact@bargainnewbooks.com",
     // Where the post-delivery email asks customers to review the shop, e.g. your
     // Trustpilot or Google review link. Leave empty to only link to book reviews.
-    "REVIEW_URL": "",
-    "REVIEW_EMAIL_DELAY_DAYS": "7"
+    "REVIEW_URL": "https://uk.trustpilot.com/evaluate/bargainnewbooks.com",
+    "REVIEW_EMAIL_DELAY_DAYS": "5"
     // Royal Mail Click & Drop: CLICK_DROP_API_KEY is a secret. Optionally add
     // "CLICK_DROP_SERVICE_CODE" here to preselect a service on every order.
   },

@@ -1,6 +1,10 @@
 import { sql } from "drizzle-orm";
 import { sqliteTable, text, integer, real, uniqueIndex, index, primaryKey } from "drizzle-orm/sqlite-core";
 
+// Placeholder account that guest-checkout orders are filed under. Its password hash
+// is of a random secret nobody knows, so it can never be logged into.
+export const GUEST_USER_ID = "guest";
+
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull(),
@@ -82,7 +86,8 @@ export const reviews = sqliteTable("reviews", {
 export const orders = sqliteTable("orders", {
   id: text("id").primaryKey(),
   orderNumber: text("order_number").notNull(),
-  // Checkout requires login, so every order belongs to a real user.
+  // Guest checkouts belong to the GUEST_USER_ID placeholder account (see
+  // migration 0007), so every order still points at a users row.
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "restrict" }),
@@ -101,7 +106,7 @@ export const orders = sqliteTable("orders", {
   shipping: real("shipping").notNull(),
   total: real("total").notNull(),
   couponCode: text("coupon_code"),
-  status: text("status", { enum: ["pending", "paid", "fulfilled", "cancelled"] })
+  status: text("status", { enum: ["pending", "paid", "fulfilled", "cancelled", "refunded"] })
     .notNull()
     .default("pending"),
   // Set once a Checkout Session is created; the webhook uses it to find the
@@ -109,6 +114,9 @@ export const orders = sqliteTable("orders", {
   // signed Stripe webhook — never trust the client's post-payment redirect.
   stripeSessionId: text("stripe_session_id"),
   stripePaymentIntentId: text("stripe_payment_intent_id"),
+  // Unguessable secret in the "view your order" links (success page + emails), so
+  // guests — who have no login — can still see their own order.
+  accessToken: text("access_token"),
   paidAt: text("paid_at"),
   // Royal Mail Click & Drop sync (see lib/click-drop.ts + lib/fulfillment.ts).
   // "pending" = not pushed yet, "sending" = push in flight, "sent" = exists in
@@ -126,6 +134,10 @@ export const orders = sqliteTable("orders", {
   confirmationEmailSentAt: text("confirmation_email_sent_at"),
   shippedEmailSentAt: text("shipped_email_sent_at"),
   reviewEmailSentAt: text("review_email_sent_at"),
+  // Total refunded so far, in pounds, mirrored from Stripe's charge.refunded webhook.
+  // A full refund also moves the order to "refunded"; a partial one keeps its status.
+  refundedAmount: real("refunded_amount").notNull().default(0),
+  refundedAt: text("refunded_at"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(current_timestamp)`),
@@ -149,6 +161,9 @@ export const orderItems = sqliteTable("order_items", {
   price: real("price").notNull(),
   qty: integer("qty").notNull(),
   format: text("format").notNull(),
+  // Copies taken off books.stockQuantity when the order was placed (0 for books that
+  // aren't quantity-tracked). Given back if the order is cancelled before payment.
+  reservedQty: integer("reserved_qty").notNull().default(0),
 }, (t) => ({
   orderIdx: index("order_items_order_idx").on(t.orderId),
 }));
@@ -181,6 +196,23 @@ export const coupons = sqliteTable("coupons", {
 // `${ip}:${route}`; `windowStart` buckets requests into fixed time windows
 // (see lib/rate-limit.ts) so a plain upsert-and-increment is enough — no
 // need for a sliding-window structure for this.
+// One row per "forgot password" email. Only a SHA-256 hash of the emailed token is
+// stored, so a leaked database can't be used to reset anyone's password.
+export const passwordResets = sqliteTable("password_resets", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull(),
+  expiresAt: text("expires_at").notNull(),
+  usedAt: text("used_at"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(current_timestamp)`),
+}, (t) => ({
+  tokenHashIdx: uniqueIndex("password_resets_token_hash_idx").on(t.tokenHash),
+}));
+
 export const rateLimits = sqliteTable(
   "rate_limits",
   {

@@ -4,7 +4,8 @@ import type Stripe from "stripe";
 import { getDb } from "@/db/client";
 import { books, orderItems, orders } from "@/db/schema";
 import { getStripe, getStripeCryptoProvider } from "@/lib/stripe";
-import { onOrderPaid, sqlNow } from "@/lib/fulfillment";
+import { onOrderPaid, onOrderRefunded, sqlNow } from "@/lib/fulfillment";
+import { releaseOrderStock } from "@/lib/stock";
 import type { Env, Variables } from "@/types/env";
 
 export const stripeWebhook = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -103,10 +104,26 @@ stripeWebhook.post("/", async (c) => {
     const session = event.data.object as Stripe.Checkout.Session;
     const orderId = session.metadata?.["orderId"];
     if (orderId) {
-      await db
+      const result = await db
         .update(orders)
         .set({ status: "cancelled" })
         .where(and(eq(orders.id, orderId), eq(orders.status, "pending")));
+      // Give the reserved copies back -- only on the transition that actually
+      // happened here, so a retried delivery can't return them twice.
+      if (result.meta.changes > 0) await releaseOrderStock(c.env.DB, orderId);
+    }
+  }
+
+  // Refunds are issued from the Stripe dashboard; this keeps the order's status in
+  // step and tells the customer. Fires for partial refunds too.
+  if (event.type === "charge.refunded") {
+    const charge = event.data.object as Stripe.Charge;
+    const paymentIntentId =
+      typeof charge.payment_intent === "string" ? charge.payment_intent : (charge.payment_intent?.id ?? null);
+    if (paymentIntentId) {
+      c.executionCtx.waitUntil(
+        onOrderRefunded(c.env, db, paymentIntentId, charge.amount_refunded / 100, charge.refunded),
+      );
     }
   }
 

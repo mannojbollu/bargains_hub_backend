@@ -13,6 +13,7 @@ import { isbn } from "@/routes/isbn";
 import { images } from "@/routes/images";
 import { stripeWebhook } from "@/routes/stripe-webhook";
 import { diagnostics } from "@/routes/diagnostics";
+import { contact } from "@/routes/contact";
 import { getDb } from "@/db/client";
 import { runScheduledJobs } from "@/lib/fulfillment";
 import type { Env, Variables } from "@/types/env";
@@ -37,6 +38,7 @@ app.route("/api/images", images);
 app.route("/api/stripe/webhook", stripeWebhook);
 // Admin-only live check of the Royal Mail + email setup. See diagnostics.ts.
 app.route("/api/diagnostics", diagnostics);
+app.route("/api/contact", contact);
 
 export default {
   fetch: app.fetch,

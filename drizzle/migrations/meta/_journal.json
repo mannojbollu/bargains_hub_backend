@@ -36,6 +36,34 @@
       "when": 1791478378327,
       "tag": "0004_royal_mail_fulfillment",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1791728656125,
+      "tag": "0005_order_item_stock_reservation",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1793372972442,
+      "tag": "0006_order_refunds",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1793462949403,
+      "tag": "0007_guest_checkout",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793463019269,
+      "tag": "0008_password_resets",
+      "breakpoints": true
     }
   ]
 }

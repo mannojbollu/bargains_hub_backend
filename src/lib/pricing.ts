@@ -5,8 +5,8 @@ import { HttpError } from "@/lib/http-error";
 import type { createOrderSchema } from "@/schemas/orders.schema";
 import type { z } from "zod";
 
-const FREE_SHIPPING_THRESHOLD = 25;
-const SHIPPING_FLAT = 2.99;
+// UK delivery is free on every order.
+const SHIPPING = 0;
 
 type OrderLines = z.infer<typeof createOrderSchema>["lines"];
 
@@ -43,7 +43,7 @@ export async function priceLines(db: Database, lines: OrderLines, couponCode: st
   }
 
   const net = subtotal - discount;
-  const shipping = net >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FLAT;
+  const shipping = SHIPPING;
   const total = Math.round((net + shipping) * 100) / 100;
 
   return { byId, subtotal, discount, couponCode: resolvedCouponCode, shipping, total };

@@ -1,13 +1,14 @@
 import { Hono, type Context } from "hono";
 import { setCookie, deleteCookie } from "hono/cookie";
-import { eq } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { users } from "@/db/schema";
-import { signupSchema, loginSchema } from "@/schemas/auth.schema";
+import { GUEST_USER_ID, passwordResets, users } from "@/db/schema";
+import { signupSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } from "@/schemas/auth.schema";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { signSession } from "@/lib/jwt";
 import { newId } from "@/lib/ids";
 import { HttpError } from "@/lib/http-error";
+import { passwordResetEmail, sendEmail } from "@/lib/email";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import { SESSION_COOKIE, requireAuth } from "@/middleware/auth";
 import type { AuthUser, Env, Variables } from "@/types/env";
@@ -93,3 +94,87 @@ auth.post("/logout", (c) => {
 });
 
 auth.get("/me", requireAuth, (c) => c.json({ user: c.get("user") }));
+
+const RESET_LINK_MINUTES = 60;
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Always answers the same way whether or not the email has an account, so this
+// can't be used to find out who shops here.
+auth.post("/forgot-password", async (c) => {
+  const db = getDb(c.env.DB);
+  const body = forgotPasswordSchema.parse(await c.req.json());
+
+  const ipRate = await checkRateLimit(db, `${clientIp(c.req.raw)}:forgot-password`, 5);
+  const emailRate = await checkRateLimit(db, `forgot-password-email:${body.email.toLowerCase()}`, 3);
+  if (!ipRate.allowed || !emailRate.allowed) {
+    throw new HttpError(429, "Too many attempts — try again in a few minutes");
+  }
+
+  const [row] = await db
+    .select({ id: users.id, name: users.name, email: users.email })
+    .from(users)
+    .where(eq(users.email, body.email))
+    .limit(1);
+
+  if (row && row.id !== GUEST_USER_ID) {
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    const token = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    await db.insert(passwordResets).values({
+      id: newId(),
+      userId: row.id,
+      tokenHash: await sha256Hex(token),
+      expiresAt: new Date(Date.now() + RESET_LINK_MINUTES * 60 * 1000).toISOString(),
+    });
+    const site = c.env.SITE_URL.replace(/\/$/, "");
+    const msg = passwordResetEmail(c.env, row.name, `${site}/reset-password?token=${token}`);
+    try {
+      await sendEmail(c.env, { to: row.email, ...msg });
+    } catch (err) {
+      console.error("Password reset email failed", err);
+    }
+  }
+
+  return c.json({ ok: true });
+});
+
+auth.post("/reset-password", async (c) => {
+  const db = getDb(c.env.DB);
+  const ipRate = await checkRateLimit(db, `${clientIp(c.req.raw)}:reset-password`, 10);
+  if (!ipRate.allowed) throw new HttpError(429, "Too many attempts — try again in a few minutes");
+
+  const body = resetPasswordSchema.parse(await c.req.json());
+  const tokenHash = await sha256Hex(body.token);
+  const now = new Date().toISOString();
+
+  // Claiming the token (setting usedAt) in the same statement that checks it is
+  // unused and unexpired means a link can only ever be used once.
+  const [reset] = await db
+    .update(passwordResets)
+    .set({ usedAt: now })
+    .where(
+      and(eq(passwordResets.tokenHash, tokenHash), isNull(passwordResets.usedAt), gt(passwordResets.expiresAt, now)),
+    )
+    .returning({ userId: passwordResets.userId });
+  if (!reset) throw new HttpError(400, "This reset link has expired or already been used — please request a new one");
+
+  const passwordHash = await hashPassword(body.password);
+  await db.update(users).set({ passwordHash }).where(eq(users.id, reset.userId));
+  // Any other outstanding links for this account stop working too.
+  await db
+    .update(passwordResets)
+    .set({ usedAt: now })
+    .where(and(eq(passwordResets.userId, reset.userId), isNull(passwordResets.usedAt)));
+
+  const [row] = await db
+    .select({ id: users.id, email: users.email, name: users.name, role: users.role })
+    .from(users)
+    .where(eq(users.id, reset.userId))
+    .limit(1);
+  const user: AuthUser = row!;
+  await issueSession(c, user.id);
+  return c.json({ user });
+});
