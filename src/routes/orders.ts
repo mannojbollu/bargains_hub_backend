@@ -57,6 +57,7 @@ ordersRoute.post("/", async (c) => {
     db,
     body.lines,
     body.couponCode,
+    { email: body.email, userId: user?.id ?? null },
   );
 
   // Copies are reserved now, at checkout, rather than when payment lands — otherwise
